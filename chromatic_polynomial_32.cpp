@@ -1,11 +1,11 @@
 // COMPUTE CHROMATIC POLYNOMIAL OF A GRAPH G
 
 // -- IMPLEMENTS DELETION/CONTRACTION ALGORITHM
-// -- LIMITED TO GRAPHS WITH AT MOST 64 NODES
+// -- LIMITED TO GRAPHS WITH AT MOST 32 NODES
 // -- OUTPUTS COEFFICIENTS OF  x^0  x^1 ... x^n  OF CHROMATIC POLYNOMIAL
 // -- ALLOWS COEFFICIENTS TO BE EXPRESSED AS MODULAR INT, INT64, INT128, OR
 //      OTHER USER-DEFINED INT SUCH AS BIG INTEGER
-// -- PASSES TESTS AT  https://judge.yosupo.jp/problem/chromatic_polynomial
+// -- TESTED ON https://judge.yosupo.jp/problem/chromatic_polynomial
 
 #include <algorithm>
 #include <cassert>
@@ -210,6 +210,7 @@ class Polynomial {
 
 // 128 BIT INTEGER I/O METHODS
 using i128 = __int128_t;
+using u128 = __uint128_t;
 string toString(i128 value) {
     string output;
     while (output.empty() || value > 0) {
@@ -258,8 +259,17 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 using pr = pair<u32, u32>;
 
+// SET GRAPH DATA TYPE INFO HERE + popcount, ctz, AND HASH
+using gtype = u32;
+
+u128 one = gtype(1);
+u128 zro = gtype(0);
+
+inline int popcount(gtype x)  { return __builtin_popcount(x); }
+inline int ctz(gtype x)  { return __builtin_ctz(x); }
+
 // REQUIRE A HASH FOR AN UNORDERED MAP TO MEMOIZE GRAPH/POLYNOMIAL PAIRS
-struct VectorHasher {
+struct VectorHash {
     size_t operator()(const vector<u32>& vec) const {
         size_t seed = vec.size();
         for (uint32_t i : vec)
@@ -267,33 +277,33 @@ struct VectorHasher {
         return seed;
     }
 };
-unordered_map<vector<u32>, Poly, VectorHasher> memo;
+unordered_map<vector<gtype>, Poly, VectorHash> memo;
 
 vector<Poly> clique;
 
 class Graph {
    public:
-    vector<u32> g;
+    vector<gtype> g;
 
     // CONSTRUCTORS
     Graph(){};
-    Graph(const vector<u32> &v) { g = v; }
+    Graph(const vector<gtype> &v) { g = v; }
 
     Graph contractEdge(const pr &edge) {
         Graph G(*this);
         const auto [u, v] = edge;
         G.g[u] |= G.g[v];
         for (auto &e : G.g) e |= (e >> v & 1) << u;
-        G.g[u] &= ~(u32(1) << u);
+        G.g[u] &= ~(one << u);
         for (auto &e : G.g)
-            e = (e & ~(~u32(0) << v)) | (e & (~u32(0) << (v + 1))) >> 1;
+            e = (e & ~(~zro << v)) | (e & (~zro << (v + 1))) >> 1;
         G.g.erase(G.g.begin() + v);
         return G;
     }
 
     bool findBridge(pr &edge) {
         const u32 n = g.size();
-        u32 visited = u32(0);
+        gtype visited = zro;
         edge = {0, 0};
         vector<u32> tin(n, 0), low(n, 0);
         u32 best = 0, timer = 0;
@@ -306,31 +316,31 @@ class Graph {
 
     bool isComplete() {  // ASSUMES CONNECTED
         const int n = (int)g.size() - 1;
-        for (auto e : g)
-            if (__builtin_popcount(e) != n) return false;
+        for (auto &e : g)
+            if (popcount(e) != n) return false;
         return true;
     }
 
     bool isLoop() {  // ASSUMES G IS CONNECTED AND NOT CHORDAL
         if (g.size() < 4) return false;
         for (const auto &e : g)
-            if (__builtin_popcount(e) != 2) return false;
+            if (popcount(e) != 2) return false;
         return true;
     }
 
     Graph deleteEdge(const pr &edge) {
         const auto [u, v] = edge;
         Graph K(*this);
-        K.g[u] &= ~(u32(1) << v);
-        K.g[v] &= ~(u32(1) << u);
+        K.g[u] &= ~(one << v);
+        K.g[v] &= ~(one << u);
         return K;
     }
 
     Graph addEdge(const pr &edge) {
         const auto [u, v] = edge;
         Graph K(*this);
-        K.g[u] |= (u32(1) << v);
-        K.g[v] |= (u32(1) << u);
+        K.g[u] |= (one << v);
+        K.g[v] |= (one << u);
         return K;
     }
 
@@ -340,17 +350,17 @@ class Graph {
         u32 best = 0;
 
         for (u32 u = 0; u < n; ++u) {
-            auto e = g[u];
-            const u32 p = __builtin_popcount(e) / 2;
+            gtype e = g[u];
+            const u32 p = popcount(e) / 2;
             // e REPS NBRS OF u WITH INDEX > u
-            e &= ~u32(0) << u;
+            e &= ~zro << u;
 
             while (e) {
-                const u32 w = __builtin_ctz(e);
-                e &= ~(u32(1) << w);
+                const u32 w = ctz(e);
+                e &= ~(one << w);
 
-                if (best == 0 || p + __builtin_popcount(g[w]) <= best) {
-                    best = p + __builtin_popcount(g[w]);
+                if (best == 0 || p + popcount(g[w]) <= best) {
+                    best = p + popcount(g[w]);
                     edge = {u, w};
                 }
             }
@@ -364,17 +374,17 @@ class Graph {
         u32 best = 0;
 
         for (u32 u = 0; u < n; ++u) {
-            auto e = g[u];
-            const u32 p = __builtin_popcount(e);
+            gtype e = g[u];
+            const u32 p = popcount(e);
             // e REPS NON NBRS OF u WITH INDEX > u
-            e = ~(e ^ (~u32(0) << n)) & (~u32(0) << (u + 1));
+            e = ~(e ^ (~zro << n)) & (~zro << (u + 1));
 
             while (e) {
-                const u32 w = __builtin_ctz(e);
-                e &= ~(u32(1) << w);
+                const u32 w = ctz(e);
+                e &= ~(one << w);
 
-                if (best == 0 || p + __builtin_popcount(g[w]) > best) {
-                    best = p + __builtin_popcount(g[w]);
+                if (best == 0 || p + popcount(g[w]) > best) {
+                    best = p + popcount(g[w]);
                     edge = {u, w};
                 }
             }
@@ -384,7 +394,7 @@ class Graph {
 
     int countEdges2x() {
         int ret = 0;
-        for (const auto &e : g) ret += __builtin_popcount(e);
+        for (const auto &e : g) ret += popcount(e);
         return ret;
     }
 
@@ -395,13 +405,13 @@ class Graph {
     Graph extractNodes(const vector<u32> &nodes) {
         const size_t n = nodes.size();
         Graph G(*this);
-        for (size_t i = 0; i < n; ++i) G.g[i] = G.g[nodes[i]];
+        for (size_t i = 0; i < n; ++i)  G.g[i] = G.g[nodes[i]];
         G.g.resize(n);
 
         for (auto &e : G.g) {
             for (size_t j = 0; j < n; ++j)
-                e = (e & ~(u32(1) << j)) | (e >> nodes[j] & 1) << j;
-            e &= (u32(1) << n) - 1;
+                e = (e & ~(one << j)) | (e >> nodes[j] & 1) << j;
+            e &= (one << n) - 1;
         }
         return G;
     }
@@ -431,13 +441,13 @@ class Graph {
         for (i32 i = 0, d = n + 1; i < n; ++i, ++d) {
             while (lp[d] == d) --d;
             const i32 v = lp[d];
-            auto e = g[v];
+            gtype e = g[v];
             idx[v] = -1;
             Erase(v);
 
             while (e) {
-                const u32 w = __builtin_ctz(e);
-                e &= ~(u32(1) << w);
+                const u32 w = ctz(e);
+                e &= ~(one << w);
                 if (idx[w] >= 0) {
                     Erase(w);
                     Insert(w, n + (++idx[w]));
@@ -450,24 +460,23 @@ class Graph {
 
     Poly checkIfChordal() {
         const vector<u32> ordering = maximumCardinalitySearch();
-        u32 visited = 0;
+        gtype visited = 0;
         vector<u32> tally(g.size(), 0);
 
         for (const u32 u : ordering) {
-            u32 neighbors = g[u] & visited;
-            u32 counter = 0;
+            gtype  neighbors = g[u] & visited;
+            u32  counter = 0;
 
             while (neighbors) {
-                const u32 v = __builtin_ctz(neighbors);
-                neighbors &= ~(u32(1) << v);
+                const u32 v = ctz(neighbors);
+                neighbors &= ~(one << v);
                 if ((g[v] & neighbors) != neighbors) return Poly();
                 ++counter;
             }
-            visited |= u32(1) << u;
+            visited |= one << u;
             ++tally[counter];
         }
 
-        // G IS CHORDAL
         Poly chromPoly = {1};
         for (i32 i = 0; i < (i32)g.size(); ++i)
             if (tally[i]) chromPoly *= Poly({-i, 1}).pow(tally[i]);
@@ -477,27 +486,27 @@ class Graph {
     // FIND CONNECTED COMPONENTS OF G
     vector<vector<u32>> components() {
         const u32 n = g.size();
-        u32 visited = u32(0);
+        gtype visited = zro;
         vector<vector<u32>> comps;
 
         for (u32 i = 0; i < n; ++i) {
             if (visited >> i & 1) continue;
             stack<u32> stk;
             stk.push(i);
-            visited |= u32(1) << i;
+            visited |= one << i;
             vector<u32> component;
 
             while (stk.size()) {
                 const u32 u = stk.top();
-                u32 e = g[u];
+                gtype e = g[u];
                 stk.pop();
                 component.push_back(u);
 
                 while (e) {
-                    const u32 w = __builtin_ctz(e);
-                    e &= ~(u32(1) << w);
+                    const u32 w = ctz(e);
+                    e &= ~(one << w);
                     if (!(visited >> w & 1)) {
-                        visited |= u32(1) << w;
+                        visited |= one << w;
                         stk.push(w);
                     }
                 }
@@ -511,7 +520,7 @@ class Graph {
     Poly chromaticPolynomial() {
         // CHECK FOR SELF LOOPS
         for (size_t i = 0; i < g.size(); ++i)
-            if (g[i] & (u32(1) << i)) return Poly(g.size() + 1, 0);
+            if (g[i] & (one << i)) return Poly(g.size() + 1, 0);
 
         // FIND CONNECTED COMPONENTS OF G
         vector<vector<u32>> comps = components();
@@ -535,17 +544,17 @@ class Graph {
     }
 
    private:
-    void bridgeDFS(vector<u32> &tin, vector<u32> &low, u32 &visited, u32 &timer,
-                   u32 &best, pr &edge, u32 u, i32 p = -1) {
-        u32 e = g[u];
-        const u32 pcu = __builtin_popcount(e);
+    void bridgeDFS(vector<u32> &tin, vector<u32> &low, gtype &visited,
+                   u32 &timer, u32 &best, pr &edge, u32 u, i32 p = -1) {
+        gtype e = g[u];
+        const u32 pcu = popcount(e);
         bool parentSkipped = false;
         tin[u] = low[u] = timer++;
-        visited |= (u32(1) << u);
+        visited |= (one << u);
 
         while (e) {
-            const i32 w = __builtin_ctz(e);
-            e &= ~(u32(1) << w);
+            const i32 w = ctz(e);
+            e &= ~(one << w);
 
             if (w == p && !parentSkipped) {
                 parentSkipped = true;
@@ -557,8 +566,8 @@ class Graph {
                 bridgeDFS(tin, low, visited, timer, best, edge, w, u);
                 low[u] = min(low[u], low[w]);
                 if (low[w] > tin[u] &&
-                    pcu + __builtin_popcount(g[w]) > best) {
-                    best = pcu + __builtin_popcount(g[w]);
+                    pcu + popcount(g[w]) > best) {
+                    best = pcu + popcount(g[w]);
                     edge = {u, w};
                 }
             }
@@ -622,37 +631,36 @@ class Graph {
     }
 };
 
-vector<u32> readData() {
+vector<gtype> readData() {
     // REQUIRES NODES TO BE LABELED  0 through ( n - 1 )
     u32 n, m;
     cin >> n >> m;
 
-    vector<u32> G(n, 0);
+    vector<gtype> G(n, 0);
     vector<pr> edges;
 
     for (u32 i = 0, u, v; i < m; ++i) {
         cin >> u >> v;
         edges.emplace_back(u, v);
-        G[u] |= u32(1) << v;
-        G[v] |= u32(1) << u;
+        G[u] |= one << v;
+        G[v] |= one << u;
     }
 
     // RELABEL NODES, SORTING BY DEGREE
     vector<pr> counts(n);
     vector<u32> revIndex(n);
     for (u32 i = 0; i < n; ++i)
-        counts[i] = make_pair(__builtin_popcount(G[i]), i);
+        counts[i] = make_pair(popcount(G[i]), i);
     sort(counts.begin(), counts.end(),
          [](pr &a, pr &b) { return a.first > b.first; });
     for (u32 i = 0; i < n; ++i) revIndex[counts[i].second] = i;
 
-    vector<u32> H(n, u32(0));
+    vector<gtype> H(n, zro);
 
     for (auto &x : edges) {
-        H[revIndex[x.first]] |= u32(1) << revIndex[x.second];
-        H[revIndex[x.second]] |= u32(1) << revIndex[x.first];
+        H[revIndex[x.first]] |= one << revIndex[x.second];
+        H[revIndex[x.second]] |= one << revIndex[x.first];
     }
-
     return H;
 }
 
@@ -661,13 +669,13 @@ int main() {
     cin.tie(0);
 
     memo.reserve(1000);
-    memo.max_load_factor(0.7);
+    memo.max_load_factor(0.75);
 
-    auto dat = readData();
-    Graph G(dat);
+    auto g = readData();
+    Graph G(g);
 
     // PRECOMPUTE VALUES FOR CLIQUES
-    int sz = dat.size();
+    int sz = g.size();
     clique.resize(sz);
     Poly poly = {1};
     for (i32 i = 0; i < sz; ++i) {
