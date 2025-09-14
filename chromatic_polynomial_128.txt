@@ -262,8 +262,8 @@ using pr = pair<u32, u32>;
 // SET GRAPH DATA TYPE INFO HERE + popcount, ctz, AND HASH
 using gtype = __uint128_t;
 
-u128 one = u128(1);
-u128 zro = u128(0);
+u128 one = gtype(1);
+u128 zro = gtype(0);
 
 int popcount(u128 n) {
     u64 low = static_cast<u64>(n);
@@ -706,3 +706,4 @@ int main() {
 
     return 0;
 }
+
