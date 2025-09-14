@@ -262,7 +262,6 @@ using pr = pair<u32, u32>;
 
 // SET GRAPH DATA TYPE INFO HERE + popcount, ctz, AND HASH
 using gtype = u64;
-
 gtype one = gtype(1);
 gtype zro = gtype(0);
 
@@ -659,9 +658,9 @@ vector<gtype> readData() {
 
     vector<gtype> H(n, zro);
 
-    for (auto &x : edges) {
-        H[revIndex[x.first]] |= one << revIndex[x.second];
-        H[revIndex[x.second]] |= one << revIndex[x.first];
+    for (const auto &[a,b] : edges) {
+        H[revIndex[a]] |= one << revIndex[b];
+        H[revIndex[b]] |= one << revIndex[a];
     }
     return H;
 }
@@ -689,4 +688,5 @@ int main() {
 
     return 0;
 }
+
 
